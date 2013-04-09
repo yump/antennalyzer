@@ -7,7 +7,7 @@ Usage:
 	swr_optmizer.py <datafile> worstvswr <desired_array_size>
 	swr_optmizer.py <datafile> maxvswrbw <desired_array_size> <maximum_VSWR>
 
-	minloss : Find the set of antennas and operating frequency that minimizes
+	minloss : Find the set of antennas and operating frequency that minimize
 	          mismatch loss for the entire array.
 
 	worstvswr : Find the set of antennas and operating frequency that minimize 
