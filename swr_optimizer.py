@@ -1,7 +1,26 @@
 #!/usr/bin/env python3
+"""
+swr_optimizer : Find an optimal subset of a set of antennas, based on VSWR.
+
+Usage:
+	swr_optmizer.py <datafile> minloss <desired_array_size>
+	swr_optmizer.py <datafile> worstvswr <desired_array_size>
+	swr_optmizer.py <datafile> maxvswrbw <desired_array_size> <maximum_VSWR>
+
+	minloss : Find the set of antennas and operating frequency that minimizes
+	          mismatch loss for the entire array.
+
+	worstvswr : Find the set of antennas and operating frequency that minimize 
+	            the VSWR of the worst antenna.
+
+	maxvswrbw : Find the set of antennas that maximizes the bandwidth for which
+	            the VSWR of the worst antenna is below a specified value.
+"""
 
 import scipy as sp
+import numpy as np
 import itertools
+import iterrecipe
 
 class AntennaSet:
 	def __init__(self,fn):
@@ -33,15 +52,15 @@ class AntennaSet:
 		arrsz : int
 			The number of elements in the desired array.
 
-		workfn : (work,freq) function ( sequence of numpy.ndarray )
-			The function to minimize.  Takes a sequence of antennas and returns
-			a tuple of the work and the index (or index range) into the samples
+		workfn : (work,freq) function ( list of numpy.ndarray )
+			The function to minimize.  Takes a list of antennas and returns a
+			tuple of the work and the index (or index range) into the samples
 			at which that work is achieved. Work should be real and
 			nonnegative.
 
 			Each antenna in the sequence is a 2 dimensional numpy array with
-			the operating modes on axis 0 (multiple polarizations,etc)
-			and the sampled frequencies on axis 1.
+			the operating modes on axis 0 (multiple polarizations,etc) and the
+			sampled frequencies on axis 1.
 
 		Returns
 		-------
@@ -50,13 +69,13 @@ class AntennaSet:
 		
 		bestind : int or tuple of int
 			The index or range of indices into the samples for which the array
-			is optimal.  This maps to the operating frequency of the array, 
+			is optimal.  This maps to the operating frequency of the array,
 			though exactly how depends on the sampling range.
 
 		bestwork : nonnegative real
 			The work function achieved by the optimal array.
 		"""
-		bestwork = sp.finfo(float).max
+		bestwork = sp.inf
 		bestarray = None
 		bestind = None # operating frequency
 		# exhaustive search: dis gon be slo
@@ -66,8 +85,47 @@ class AntennaSet:
 				bestwork = newwork
 				bestind = newind
 				bestarray = array
-		best_asnumbered = [ self.reversemap[i] for i in bestarray ]
-		return (best_asnumbered,bestind,bestwork)
+		if bestarray == None:
+			raise ConstraintError("Unsatisfiable constraints")
+		else:
+			best_asnumbered = [ self.reversemap[i] for i in bestarray ]
+			return (best_asnumbered,bestind,bestwork)
+
+class ConstraintError(Exception):
+	def __init__(self,value):
+		self.value = value
+	def __str__(self):
+		return repr(self.value)
+
+class maxvswrbw:
+	"""
+	Class of objective functions for maximizing bandwidth given an 
+	upper bound on VSWR.
+	"""
+	def __init__(self,vswr):
+		self.max = vswr
+
+	def __call__(self,ants):
+		antarr = sp.concatenate(ants)
+		# shared bandwidth
+		vswr_ok = sp.all(antarr < self.max, axis=0)
+		# find the widest region (there's probably only one, but...)
+		best = 0
+		for before,end in iterrecipe.grouper(2,sp.nonzero(sp.diff(vswr_ok))[0]):
+			if end - before > best:
+				best = end - before
+				region = (before+1, end)
+		# invert the objective (so small is good)
+		if best == 0:
+			return sp.inf,(0,0)
+		else:
+			return 1.0/best, region
+
+def worstminvswr(ants):
+	antarr = sp.concatenate(ants)
+	worstvswr = np.max(antarr,axis=0)
+	bestind = sp.argmin(worstvswr)
+	return worstvswr[bestind],bestind
 
 def minloss(ants):
 	antarr = sp.concatenate(ants)
@@ -81,15 +139,27 @@ def reflpwr(swr):
 
 if __name__ == "__main__":
 	import sys
-	usage = (
-	"""
-	usage: swr_recorder.py <datafile> <desired_array_size>
-	""")
-	if len(sys.argv) != 3:
-		print(usage)
+	try:
+		filename = sys.argv[1]
+		antset = AntennaSet(filename)
+		method = sys.argv[2]
+		arrsz = int(sys.argv[3])
+		if method == "minloss":
+			result = antset.optimalarray(arrsz, workfn=minloss)
+			print("Array: {}\nFreq: {}\nWork: {}".format(*result))
+		elif method == "worstvswr":
+			result = antset.optimalarray(arrsz, workfn=worstminvswr)
+			print("Array: {}\nFreq: {}\nWorst VSWR: {}".format(*result))
+		elif method == "maxvswrbw":
+			maxvswr = float(sys.argv[4])
+			result = antset.optimalarray(arrsz,workfn=maxvswrbw(maxvswr))
+			print("Array: {}\nBandwitdth: {}\nWork: {}".format(*result))
+		else:
+			print(__doc__)
+			exit(1)
+	except (IndexError,ValueError):
+		print(__doc__)
 		exit(1)
 
-	filename = sys.argv[1]
-	antset = AntennaSet(filename)
-	result = antset.optimalarray(int(sys.argv[2]), workfn=minloss)
-	print("Array: {}\nFreq: {}\nWork: {}".format(*result))
+
+
