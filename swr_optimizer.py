@@ -32,6 +32,9 @@ Usage:
 	worstvswr : Find the set of antennas and operating frequency that minimize 
 	            the VSWR of the worst antenna.
 
+	meanvswr : Find the set of antennas and operating frequency that minimize 
+	           the mean VSWR of all antennas.
+
 	maxvswrbw : Find the set of antennas that maximizes the bandwidth for which
 	            the VSWR of the worst antenna is below a specified value.
 """
@@ -146,6 +149,12 @@ def worstminvswr(ants):
 	bestind = sp.argmin(worstvswr)
 	return worstvswr[bestind],bestind
 
+def meanminvswr(ants):
+	antarr = sp.concatenate(ants)
+	meanvswr = sp.mean(antarr,axis=0)
+	bestind = sp.argmin(meanvswr)
+	return meanvswr[bestind],bestind
+
 def minloss(ants):
 	antarr = sp.concatenate(ants)
 	arr_reflpwr = sp.sum(reflpwr(antarr),axis=0)
@@ -173,6 +182,9 @@ if __name__ == "__main__":
 			maxvswr = float(sys.argv[4])
 			result = antset.optimalarray(arrsz,workfn=maxvswrbw(maxvswr))
 			print("Array: {}\nBandwitdth: {}\nWork: {}".format(*result))
+		elif method == "meanvswr":
+			result = antset.optimalarray(arrsz, workfn=meanminvswr)
+			print("Array: {}\nFreq: {}\nMean VSWR: {}".format(*result))
 		else:
 			print(__doc__)
 			exit(1)
