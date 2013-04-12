@@ -17,11 +17,11 @@
 #   along with swr-recorder.  If not, see <http://www.gnu.org/licenses/>.
 
 class QAMRadio:
-	"""Superclass for QAM radios."""
+    """Superclass for QAM radios."""
 
-	def __init__(self, host=None, port=None):
-		raise NotImplementedError
+    def __init__(self, host=None, port=None):
+        raise NotImplementedError
 
-	def sample(self):
-		raise NotImplementedError
+    def sample(self):
+        raise NotImplementedError
 
